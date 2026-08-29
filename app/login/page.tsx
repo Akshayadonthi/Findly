@@ -12,7 +12,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, isSupabase } = useAuth();
+  const { signIn, signInWithGoogle, isSupabase } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -63,18 +63,10 @@ export default function LoginPage() {
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
-      if (isSupabaseConfigured && supabase) {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-          },
-        });
-        if (error) {
-          setErrorMessage(error.message);
-        }
+      const res = await signInWithGoogle();
+      if (res.error) {
+        setErrorMessage(res.error);
       } else {
-        await signIn("google-sso@university.edu", "google-sso-dummy-pass");
         router.push("/");
       }
     } catch (err: unknown) {
