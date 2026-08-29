@@ -30,6 +30,7 @@ import { dbService } from "@/lib/db";
 import { useAuth } from "@/lib/auth-context";
 import { formatDate, getInitials } from "@/lib/utils";
 import { Item } from "@/types";
+import ShareModal from "@/components/items/ShareModal";
 
 export default function DynamicItemPage() {
   const { id } = useParams() as { id: string };
@@ -44,6 +45,7 @@ export default function DynamicItemPage() {
   const [isStartingChat, setIsStartingChat] = useState(false);
 
   const [showClaimNoticeModal, setShowClaimNoticeModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     const fetchItemData = async () => {
@@ -89,11 +91,7 @@ export default function DynamicItemPage() {
   };
 
   const handleShare = () => {
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.href);
-    }
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+    setShowShareModal(true);
   };
 
   const handleStartChat = async () => {
@@ -364,6 +362,15 @@ export default function DynamicItemPage() {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Social Share Modal */}
+      {item && (
+        <ShareModal
+          item={item}
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+        />
       )}
 
     </div>

@@ -16,20 +16,40 @@ import {
   Bookmark,
   MessageSquare,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  Bell
 } from "lucide-react";
 import Logo from "./Logo";
 import Button from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { getInitials } from "@/lib/utils";
+import { dbService } from "@/lib/db";
+import NotificationDrawer from "@/components/notifications/NotificationDrawer";
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showNotifDrawer, setShowNotifDrawer] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   const { user, signOut } = useAuth();
   const role = user?.role || "user";
+
+  React.useEffect(() => {
+    if (!user) return;
+    const fetchUnread = async () => {
+      try {
+        const notifs = await dbService.getNotifications(user.id);
+        setUnreadNotifCount(notifs.filter(n => !n.isRead).length);
+      } catch (e) {
+        console.error("Error loading notification count:", e);
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => clearInterval(interval);
+  }, [user, showNotifDrawer]);
 
   const navLinks = [
     { name: "Browse Lost", href: "/lost" },
@@ -96,13 +116,29 @@ export const Navbar: React.FC = () => {
 
             {/* Authenticated State */}
             {user ? (
-              <div className="relative">
+              <div className="flex items-center gap-2 relative">
+                {/* Notification Bell Button */}
                 <button
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="h-10 w-10 rounded-full bg-primary-100 border border-primary-200/50 flex items-center justify-center font-bold text-primary-700 text-sm focus:outline-none hover:bg-primary-200 transition-colors"
+                  type="button"
+                  onClick={() => setShowNotifDrawer(true)}
+                  className="relative p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-full transition-colors"
+                  title="Notifications"
                 >
-                  {getInitials(user.name)}
+                  <Bell className="h-5 w-5" />
+                  {unreadNotifCount > 0 && (
+                    <span className="absolute top-1 right-1 h-4 w-4 bg-danger-600 text-white font-bold text-[10px] rounded-full flex items-center justify-center shadow-xs animate-pulse">
+                      {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
+                    </span>
+                  )}
                 </button>
+
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="h-10 w-10 rounded-full bg-primary-100 border border-primary-200/50 flex items-center justify-center font-bold text-primary-700 text-sm focus:outline-none hover:bg-primary-200 transition-colors"
+                  >
+                    {getInitials(user.name)}
+                  </button>
 
                 {/* Desktop Dropdown */}
                 {showDropdown && (
@@ -188,6 +224,7 @@ export const Navbar: React.FC = () => {
                     </button>
                   </div>
                 )}
+                </div>
               </div>
             ) : (
               <Link href="/login">
@@ -310,6 +347,12 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Notification Drawer Panel */}
+      <NotificationDrawer
+        isOpen={showNotifDrawer}
+        onClose={() => setShowNotifDrawer(false)}
+      />
     </header>
   );
 };

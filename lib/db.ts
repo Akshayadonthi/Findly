@@ -19,6 +19,8 @@ import {
   AnalyticsData,
   UserRole
 } from "../types";
+import { Notification, NotificationType } from "../types/notification";
+import { calculateDistanceKm } from "./geo";
 
 export interface DBClaim {
   id: string;
@@ -193,6 +195,14 @@ export const dbService = {
           if (!matchTitle && !matchDesc) return false;
         }
         if (filters.category && item.category !== filters.category) return false;
+
+        if (filters.maxDistanceKm && filters.userLat !== undefined && filters.userLng !== undefined) {
+          if (item.latitude !== undefined && item.longitude !== undefined) {
+            const dist = calculateDistanceKm(filters.userLat, filters.userLng, item.latitude, item.longitude);
+            if (dist > filters.maxDistanceKm) return false;
+          }
+        }
+
         return true;
       });
     }
@@ -1509,6 +1519,93 @@ export const dbService = {
       });
       setLocalStorageData("findly_activity_logs", logs);
     }
+  },
+
+  // NOTIFICATIONS API
+  async getNotifications(userId: string): Promise<Notification[]> {
+    initLocalStorage();
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase!;
+      const { data, error } = await client
+        .from("notifications")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error || !data) return getLocalStorageData(`findly_notifications_${userId}`, []);
+      return (data as Record<string, unknown>[]).map(n => ({
+        id: String(n.id),
+        userId: String(n.user_id),
+        type: (n.type as NotificationType) || "system",
+        title: String(n.title),
+        message: String(n.message),
+        link: n.link ? String(n.link) : undefined,
+        isRead: Boolean(n.is_read),
+        createdAt: String(n.created_at),
+      }));
+    } else {
+      return getLocalStorageData(`findly_notifications_${userId}`, []);
+    }
+  },
+
+  async createNotification(userId: string, type: NotificationType, title: string, message: string, link?: string): Promise<Notification> {
+    initLocalStorage();
+    const newNotif: Notification = {
+      id: Math.random().toString(36).substring(2, 9),
+      userId,
+      type,
+      title,
+      message,
+      link,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase!.from("notifications").insert({
+          user_id: userId,
+          type,
+          title,
+          message,
+          link: link || null,
+          is_read: false,
+        });
+      } catch (e) {
+        console.warn("Supabase notification error:", e);
+      }
+    }
+
+    const localKey = `findly_notifications_${userId}`;
+    const userNotifs: Notification[] = getLocalStorageData(localKey, []);
+    userNotifs.unshift(newNotif);
+    setLocalStorageData(localKey, userNotifs);
+    return newNotif;
+  },
+
+  async markNotificationAsRead(userId: string, notificationId: string): Promise<void> {
+    initLocalStorage();
+    if (isSupabaseConfigured && supabase) {
+      await supabase!.from("notifications").update({ is_read: true }).eq("id", notificationId);
+    }
+    const localKey = `findly_notifications_${userId}`;
+    const userNotifs: Notification[] = getLocalStorageData(localKey, []);
+    const idx = userNotifs.findIndex(n => n.id === notificationId);
+    if (idx !== -1) {
+      userNotifs[idx].isRead = true;
+      setLocalStorageData(localKey, userNotifs);
+    }
+  },
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    initLocalStorage();
+    if (isSupabaseConfigured && supabase) {
+      await supabase!.from("notifications").update({ is_read: true }).eq("user_id", userId);
+    }
+    const localKey = `findly_notifications_${userId}`;
+    const userNotifs: Notification[] = getLocalStorageData(localKey, []);
+    userNotifs.forEach(n => { n.isRead = true; });
+    setLocalStorageData(localKey, userNotifs);
   }
 };
 

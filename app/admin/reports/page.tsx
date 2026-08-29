@@ -45,9 +45,24 @@ export default function AdminReportsPage() {
         await dbService.deleteItem(actionTarget.itemId, activeAdmin.id);
         await dbService.updateReportStatus(actionTarget.id, "resolved", activeAdmin.id);
         await dbService.logAdminActivity(activeAdmin.id, "Removed reported listing", "item", actionTarget.itemId);
+        
+        // Notify reporter
+        await dbService.createNotification(
+          actionTarget.reporterId,
+          "system",
+          "Report Resolved",
+          "Thank you for helping keep Findly safe. The reported listing has been reviewed and removed."
+        );
       } else if (actionType === "suspend" && actionTarget.reportedUserId) {
         await dbService.setUserSuspension(actionTarget.reportedUserId, true, actionTarget.reason, activeAdmin.id);
         await dbService.updateReportStatus(actionTarget.id, "resolved", activeAdmin.id);
+        
+        await dbService.createNotification(
+          actionTarget.reportedUserId,
+          "system",
+          "Account Status Warning",
+          `Your account has been suspended due to policy violation: ${actionTarget.reason}.`
+        );
       } else if (actionType === "dismiss") {
         await dbService.updateReportStatus(actionTarget.id, "dismissed", activeAdmin.id);
         await dbService.logAdminActivity(activeAdmin.id, "Dismissed report", "report", actionTarget.id);

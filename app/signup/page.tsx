@@ -21,6 +21,7 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -56,6 +57,8 @@ export default function SignupPage() {
         const res = await signUp(fullName, email, password);
         if (res.error) {
           setErrorMessage(res.error);
+        } else if (res.requiresEmailConfirmation) {
+          setInfoMessage("Registration successful! A confirmation email has been sent to your inbox. Please click the link to verify your account before logging in.");
         } else {
           router.push("/");
         }
@@ -112,6 +115,14 @@ export default function SignupPage() {
           <span>Database Mode:</span>
           <span className="text-primary-600 uppercase font-bold">{isSupabase ? "Supabase Live" : "Demo Storage"}</span>
         </div>
+
+        {/* Info / Success message alert */}
+        {infoMessage && (
+          <div className="flex gap-2.5 p-4 bg-success-50 border border-success-100 rounded-2xl text-xs text-success-700 leading-relaxed animate-scale-in">
+            <AlertCircle className="h-4.5 w-4.5 shrink-0 text-success-600" />
+            <p className="font-medium">{infoMessage}</p>
+          </div>
+        )}
 
         {/* Error message alert */}
         {errorMessage && (

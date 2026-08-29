@@ -78,6 +78,9 @@ export interface FilterState {
   dateTo?: string;
   status?: string;
   sortBy: "newest" | "oldest" | string;
+  maxDistanceKm?: number;
+  userLat?: number;
+  userLng?: number;
   page?: number;
   limit?: number;
 }

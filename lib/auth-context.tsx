@@ -9,7 +9,7 @@ interface AuthContextType {
   loading: boolean;
   isSupabase: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (name: string, email: string, password: string) => Promise<{ error?: string }>;
+  signUp: (name: string, email: string, password: string) => Promise<{ error?: string; requiresEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
 }
 
@@ -36,31 +36,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (isSupabaseConfigured && supabase) {
       const client = supabase!;
-      
+
+      const syncUserProfile = async (sessionUser: { id: string; email?: string; user_metadata?: { full_name?: string } }) => {
+        try {
+          let { data: profile } = await client
+            .from("profiles")
+            .select("*")
+            .eq("id", sessionUser.id)
+            .maybeSingle();
+
+          // Auto-upsert profile if missing
+          if (!profile) {
+            const defaultName = sessionUser.user_metadata?.full_name || sessionUser.email?.split("@")[0] || "User";
+            const { data: createdProfile } = await client
+              .from("profiles")
+              .upsert({
+                id: sessionUser.id,
+                name: defaultName,
+                role: "user",
+              })
+              .select()
+              .single();
+            profile = createdProfile;
+          }
+
+          setUser({
+            id: sessionUser.id,
+            email: sessionUser.email,
+            name: profile?.name || sessionUser.user_metadata?.full_name || sessionUser.email?.split("@")[0] || "User",
+            avatarUrl: profile?.avatar_url ? String(profile.avatar_url) : undefined,
+            role: (profile?.role as User["role"]) || "user",
+            isSuspended: Boolean(profile?.is_suspended),
+            suspendedUntil: profile?.suspended_until ? String(profile.suspended_until) : undefined,
+            suspensionReason: profile?.suspension_reason ? String(profile.suspension_reason) : undefined,
+            memberSince: profile?.created_at ? new Date(String(profile.created_at)).toLocaleDateString("en-US", { year: "numeric", month: "long" }) : "Member",
+          });
+        } catch (err) {
+          console.error("Error syncing user profile:", err);
+          setUser({
+            id: sessionUser.id,
+            email: sessionUser.email,
+            name: sessionUser.user_metadata?.full_name || sessionUser.email?.split("@")[0] || "User",
+            role: "user",
+            memberSince: "Member",
+          });
+        }
+      };
+
       const checkSession = async () => {
         try {
           const { data: { session } } = await client.auth.getSession();
           if (session?.user) {
-            const { data: profile } = await client
-              .from("profiles")
-              .select("*")
-              .eq("id", session.user.id)
-              .single();
-
-            if (profile) {
-              setUser({
-                id: profile.id,
-                name: profile.name,
-                avatarUrl: profile.avatar_url,
-                memberSince: new Date(profile.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long" }),
-              });
-            } else {
-              setUser({
-                id: session.user.id,
-                name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "User",
-                memberSince: "New Member",
-              });
-            }
+            await syncUserProfile(session.user);
           } else {
             setUser(null);
           }
@@ -76,26 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const { data: { subscription } } = client.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
-          const { data: profile } = await client
-            .from("profiles")
-            .select("*")
-            .eq("id", session.user.id)
-            .single();
-
-          if (profile) {
-            setUser({
-              id: profile.id,
-              name: profile.name,
-              avatarUrl: profile.avatar_url,
-              memberSince: new Date(profile.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long" }),
-            });
-          } else {
-            setUser({
-              id: session.user.id,
-              name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "User",
-              memberSince: "New Member",
-            });
-          }
+          await syncUserProfile(session.user);
         } else {
           setUser(null);
         }
@@ -116,6 +124,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error.message.includes("Invalid login credentials")) {
           return { error: "Invalid email or password. If you recently registered, check your email inbox to confirm your account first." };
         }
+        if (error.message.includes("Email not confirmed")) {
+          return { error: "Your email address has not been confirmed yet. Please check your inbox for the confirmation link." };
+        }
         return { error: error.message };
       }
       return {};
@@ -132,7 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Sign up handler
-  const signUp = async (name: string, email: string, password: string): Promise<{ error?: string }> => {
+  const signUp = async (name: string, email: string, password: string): Promise<{ error?: string; requiresEmailConfirmation?: boolean }> => {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase!.auth.signUp({
         email,
@@ -145,12 +156,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) return { error: error.message };
 
       if (data.user) {
-        await supabase!.from("profiles").insert({
-          id: data.user.id,
-          name,
-          role: "user",
-        });
+        try {
+          await supabase!.from("profiles").upsert({
+            id: data.user.id,
+            name,
+            role: "user",
+          });
+        } catch (e) {
+          console.warn("Profile upsert notice:", e);
+        }
       }
+
+      if (data.user && !data.session) {
+        return { requiresEmailConfirmation: true };
+      }
+
       return {};
     } else {
       const users: User[] = JSON.parse(localStorage.getItem("findly_users") || "[]");
@@ -158,6 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: Math.random().toString(36).substring(2, 9),
         name,
         email,
+        role: "user",
         memberSince: "Just Joined",
       };
       users.push(newUser);
