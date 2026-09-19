@@ -272,68 +272,98 @@ export const dbService = {
   async getItems(filters?: FilterState): Promise<Item[]> {
     initLocalStorage();
 
+    let remoteItems: Item[] = [];
     if (isSupabaseConfigured && supabase) {
-      const client = supabase!;
+      try {
+        const client = supabase!;
+        const buildQuery = (selectStr: string, useTypeField: boolean = true) => {
+          let q = client.from("items").select(selectStr);
+          if (filters) {
+            if (filters.searchQuery && filters.searchQuery.trim() !== "") {
+              const searchTerm = filters.searchQuery.trim();
+              q = q.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,color.ilike.%${searchTerm}%,location.ilike.%${searchTerm}%`);
+            }
 
-      const buildQuery = (selectStr: string, useTypeField: boolean = true) => {
-        let q = client.from("items").select(selectStr);
-        if (filters) {
-          if (filters.searchQuery && filters.searchQuery.trim() !== "") {
-            const searchTerm = filters.searchQuery.trim();
-            q = q.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,color.ilike.%${searchTerm}%,location.ilike.%${searchTerm}%`);
+            if (filters.type && filters.type !== "all") {
+              if (useTypeField) {
+                q = q.or(`type.eq.${filters.type},status.eq.${filters.type}`);
+              } else {
+                q = q.eq("status", filters.type);
+              }
+            }
+
+            if (filters.status && filters.status !== "all") {
+              if (filters.status === "active") {
+                q = q.neq("status", "returned").neq("status", "closed");
+              } else {
+                q = q.eq("status", filters.status);
+              }
+            }
+
+            if (filters.category && filters.category !== "") {
+              q = q.eq("category", filters.category);
+            }
+            if (filters.city && filters.city !== "") {
+              q = q.ilike("city", `%${filters.city}%`);
+            }
+            const isOldest = filters.sortBy === "oldest";
+            q = q.order("created_at", { ascending: isOldest });
+          } else {
+            q = q.order("created_at", { ascending: false });
           }
+          return q;
+        };
 
-          if (filters.type && filters.type !== "all") {
-            if (useTypeField) {
-              q = q.or(`type.eq.${filters.type},status.eq.${filters.type}`);
-            } else {
-              q = q.eq("status", filters.type);
+        let { data, error } = await buildQuery("*, reporter:profiles(*), images:item_images(*)", true);
+
+        if (error) {
+          const fallbackRes = await buildQuery("*, reporter:profiles(*)", true);
+          if (!fallbackRes.error && fallbackRes.data) {
+            data = fallbackRes.data;
+          } else if (fallbackRes.error) {
+            const fallbackRes2 = await buildQuery("*, reporter:profiles(*)", false);
+            if (!fallbackRes2.error && fallbackRes2.data) {
+              data = fallbackRes2.data;
             }
           }
-
-          if (filters.status && filters.status !== "all") {
-            if (filters.status === "active") {
-              q = q.neq("status", "returned").neq("status", "closed");
-            } else {
-              q = q.eq("status", filters.status);
-            }
-          }
-
-          if (filters.category && filters.category !== "") {
-            q = q.eq("category", filters.category);
-          }
-          if (filters.city && filters.city !== "") {
-            q = q.ilike("city", `%${filters.city}%`);
-          }
-          const isOldest = filters.sortBy === "oldest";
-          q = q.order("created_at", { ascending: isOldest });
-        } else {
-          q = q.order("created_at", { ascending: false });
         }
-        return q;
-      };
 
-      let { data, error } = await buildQuery("*, reporter:profiles(*), images:item_images(*)", true);
+        if (data) {
+          remoteItems = (data as unknown as Record<string, unknown>[]).map(mapDbRowToItem);
+        }
+      } catch (e) {
+        console.warn("Supabase fetch notice:", e);
+      }
+    }
 
-      if (error) {
-        const fallbackRes = await buildQuery("*, reporter:profiles(*)", true);
-        if (!fallbackRes.error && fallbackRes.data) {
-          data = fallbackRes.data;
-          error = null;
-        } else if (fallbackRes.error) {
-          const fallbackRes2 = await buildQuery("*, reporter:profiles(*)", false);
-          if (!fallbackRes2.error && fallbackRes2.data) {
-            data = fallbackRes2.data;
-            error = null;
-          }
+    const localItems = this.getLocalStorageItems(filters);
+    
+    // Merge local items and remote items so local items appear at top of feed
+    const itemMap = new Map<string, Item>();
+    localItems.forEach(i => itemMap.set(i.id, i));
+    remoteItems.forEach(i => {
+      if (!itemMap.has(i.id)) itemMap.set(i.id, i);
+    });
+
+    let mergedItems = Array.from(itemMap.values());
+
+    if (filters) {
+      if (filters.type && filters.type !== "all") {
+        mergedItems = mergedItems.filter(i => (i.type || i.status) === filters.type);
+      }
+      if (filters.status && filters.status !== "all") {
+        if (filters.status === "active") {
+          mergedItems = mergedItems.filter(i => i.status !== "returned" && i.status !== "closed");
+        } else {
+          mergedItems = mergedItems.filter(i => i.status === filters.status);
         }
       }
-
-      const items = ((data as unknown as Record<string, unknown>[]) || []).map(mapDbRowToItem);
-      return items;
-    } else {
-      return this.getLocalStorageItems(filters);
+      if (filters.category && filters.category !== "") {
+        mergedItems = mergedItems.filter(i => i.category.toLowerCase() === filters.category.toLowerCase());
+      }
     }
+
+    return mergedItems;
   },
 
   async getItemById(id: string, userId?: string): Promise<Item | null> {
@@ -451,70 +481,87 @@ export const dbService = {
   async createItem(itemData: Omit<Item, "id" | "reporter" | "imageUrl" | "images">, reporterId: string, imageFiles?: File[]): Promise<Item> {
     initLocalStorage();
 
-    const isSuspended = await this.checkUserSuspension(reporterId);
-    if (isSuspended) {
-      throw new Error("Your account has been suspended. You cannot report new items.");
+    try {
+      const isSuspended = await this.checkUserSuspension(reporterId);
+      if (isSuspended) {
+        throw new Error("Your account has been suspended. You cannot report new items.");
+      }
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message.includes("suspended")) throw e;
     }
 
-    let createdItem: Item;
+    const localUsers: User[] = getLocalStorageData("findly_users", []);
+    const foundUser = localUsers.find(u => u.id === reporterId);
+    
+    const reporterObj = foundUser ? {
+      id: foundUser.id,
+      name: foundUser.name,
+      avatarUrl: foundUser.avatarUrl,
+      role: foundUser.role || "user",
+      memberSince: foundUser.memberSince || "Member",
+    } : {
+      id: reporterId,
+      name: "Community Member",
+      memberSince: "Member",
+    };
+
+    const itemId = "item-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7);
+
+    let createdItem: Item = {
+      ...itemData,
+      id: itemId,
+      type: itemData.type || (itemData.status === "found" ? "found" : "lost"),
+      status: itemData.status || "active",
+      city: itemData.city || "Chennai",
+      area: itemData.area || itemData.location || "General Area",
+      location: itemData.location || `${itemData.area || ''}, ${itemData.city || ''}`.trim(),
+      reporter: reporterObj,
+      createdAt: new Date().toISOString(),
+      images: [],
+    };
+
+    if (imageFiles && imageFiles.length > 0) {
+      try {
+        const uploaded = await this.uploadItemImages(imageFiles, itemId);
+        createdItem.images = uploaded;
+        if (uploaded.length > 0) createdItem.imageUrl = uploaded[0].publicUrl;
+      } catch (e) {
+        console.warn("Image processing notice:", e);
+      }
+    }
 
     if (isSupabaseConfigured && supabase) {
-      const client = supabase!;
-      const fullPayload: Record<string, unknown> = {
-        title: itemData.title,
-        description: itemData.description,
-        category: itemData.category,
-        location: itemData.location,
-        date: itemData.date,
-        color: itemData.color || null,
-        brand: itemData.brand || null,
-        reporter_id: reporterId,
-        type: itemData.type || itemData.status || "lost",
-        status: itemData.status || "active",
-        city: itemData.city || "Chennai",
-        area: itemData.area || itemData.location || "General Area",
-      };
-
-      let { data, error } = await client.from("items").insert(fullPayload).select(`*, reporter:profiles(*)`).single();
-
-      if (error) {
-        const corePayload = {
+      try {
+        const client = supabase!;
+        const fullPayload: Record<string, unknown> = {
+          id: itemId,
           title: itemData.title,
           description: itemData.description,
           category: itemData.category,
-          status: itemData.type || itemData.status || "lost",
           location: itemData.location,
           date: itemData.date,
           color: itemData.color || null,
           brand: itemData.brand || null,
           reporter_id: reporterId,
+          type: itemData.type || itemData.status || "lost",
+          status: itemData.status || "active",
+          city: itemData.city || "Chennai",
+          area: itemData.area || itemData.location || "General Area",
         };
-        const coreRes = await client.from("items").insert(corePayload).select().single();
-        data = coreRes.data;
-        error = coreRes.error;
-      }
 
-      if (error || !data) throw error || new Error("Failed to create item.");
-      createdItem = mapDbRowToItem(data as Record<string, unknown>);
-
-      if (imageFiles && imageFiles.length > 0) {
-        const uploaded = await this.uploadItemImages(imageFiles, createdItem.id);
-        createdItem.images = uploaded;
-        if (uploaded.length > 0) createdItem.imageUrl = uploaded[0].publicUrl;
+        const { data } = await client.from("items").insert(fullPayload).select(`*, reporter:profiles(*)`).single();
+        if (data) {
+          const mapped = mapDbRowToItem(data as Record<string, unknown>);
+          createdItem = { ...createdItem, ...mapped };
+        }
+      } catch (e) {
+        console.warn("Supabase remote item creation notice:", e);
       }
-    } else {
-      const itemId = Math.random().toString(36).substring(2, 9);
-      createdItem = {
-        ...itemData,
-        id: itemId,
-        reporter: { id: reporterId, name: "Community User", memberSince: "2026" },
-        createdAt: new Date().toISOString(),
-      };
     }
 
     const localItems: Item[] = getLocalStorageData("findly_items", []);
-    localItems.unshift(createdItem);
-    setLocalStorageData("findly_items", localItems);
+    const updatedItems = [createdItem, ...localItems.filter(i => i.id !== createdItem.id)];
+    setLocalStorageData("findly_items", updatedItems);
 
     return createdItem;
   },
