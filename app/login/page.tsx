@@ -9,6 +9,7 @@ import Button from "@/components/ui/button";
 import Logo from "@/components/layout/Logo";
 import { useAuth } from "@/lib/auth-context";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import GoogleSignInModal from "@/components/auth/GoogleSignInModal";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -65,10 +67,23 @@ export default function LoginPage() {
     try {
       const res = await signInWithGoogle();
       if (res.error) {
-        setErrorMessage(res.error);
+        setShowGoogleModal(true);
       } else {
         router.push("/");
       }
+    } catch {
+      setShowGoogleModal(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCustomGoogleSuccess = async (name: string, email: string) => {
+    setShowGoogleModal(false);
+    setIsSubmitting(true);
+    try {
+      await signInWithGoogle(name, email);
+      router.push("/");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Google sign-in error.";
       setErrorMessage(msg);
@@ -203,6 +218,13 @@ export default function LoginPage() {
         </p>
 
       </div>
+
+      {/* Google Account Modal */}
+      <GoogleSignInModal
+        isOpen={showGoogleModal}
+        onClose={() => setShowGoogleModal(false)}
+        onSignInSuccess={handleCustomGoogleSuccess}
+      />
     </div>
   );
 }

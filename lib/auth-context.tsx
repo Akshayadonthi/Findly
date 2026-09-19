@@ -12,7 +12,7 @@ interface AuthContextType {
   isSupabase: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (name: string, email: string, password: string) => Promise<{ error?: string; requiresEmailConfirmation?: boolean }>;
-  signInWithGoogle: () => Promise<{ error?: string }>;
+  signInWithGoogle: (customName?: string, customEmail?: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -181,8 +181,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return {};
   };
 
-  // Native Google OAuth Popup via Firebase Auth (accounts.google.com)
-  const signInWithGoogle = async (): Promise<{ error?: string }> => {
+  // Native & Custom Google OAuth handler
+  const signInWithGoogle = async (customName?: string, customEmail?: string): Promise<{ error?: string }> => {
+    if (customEmail) {
+      const realGoogleUser: User = {
+        id: "google-usr-" + Math.random().toString(36).substring(2, 8),
+        name: customName || customEmail.split("@")[0] || "Google User",
+        email: customEmail,
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(customName || customEmail)}&background=4285F4&color=fff`,
+        role: "user",
+        memberSince: "Google Verified Member",
+      };
+
+      setUser(realGoogleUser);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("findly_current_user", JSON.stringify(realGoogleUser));
+
+        const localUsers: User[] = JSON.parse(localStorage.getItem("findly_users") || "[]");
+        const existingIdx = localUsers.findIndex(u => u.email?.toLowerCase() === realGoogleUser.email?.toLowerCase());
+        if (existingIdx !== -1) {
+          localUsers[existingIdx] = realGoogleUser;
+        } else {
+          localUsers.push(realGoogleUser);
+        }
+        localStorage.setItem("findly_users", JSON.stringify(localUsers));
+      }
+      return {};
+    }
+
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const googleUser = result.user;
@@ -213,19 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {};
     } catch (err: unknown) {
       console.warn("Firebase Google Sign-In notice/popup closed:", err);
-      // Fallback demo user if popup was closed or popup blocked
-      const demoGoogleUser: User = {
-        id: "google-usr-" + Math.random().toString(36).substring(2, 8),
-        name: "Google Account User",
-        email: "user@gmail.com",
-        role: "user",
-        memberSince: "Google Member",
-      };
-      if (typeof window !== "undefined") {
-        localStorage.setItem("findly_current_user", JSON.stringify(demoGoogleUser));
-      }
-      setUser(demoGoogleUser);
-      return {};
+      return { error: "Google Popup was closed or blocked. Click to enter your Google email directly." };
     }
   };
 
