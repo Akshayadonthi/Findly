@@ -12,7 +12,7 @@ interface AuthContextType {
   isSupabase: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (name: string, email: string, password: string) => Promise<{ error?: string; requiresEmailConfirmation?: boolean }>;
-  signInWithGoogle: (customName?: string, customEmail?: string) => Promise<{ error?: string }>;
+  signInWithGoogle: () => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -112,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Login handler with 100% fallback resilience
+  // Login handler
   const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
     const localUsers: User[] = JSON.parse(localStorage.getItem("findly_users") || "[]");
     const foundLocal = localUsers.find((u) => u.email?.toLowerCase() === email.toLowerCase());
@@ -181,34 +181,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return {};
   };
 
-  // Native & Custom Google OAuth handler
-  const signInWithGoogle = async (customName?: string, customEmail?: string): Promise<{ error?: string }> => {
-    if (customEmail) {
-      const realGoogleUser: User = {
-        id: "google-usr-" + Math.random().toString(36).substring(2, 8),
-        name: customName || customEmail.split("@")[0] || "Google User",
-        email: customEmail,
-        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(customName || customEmail)}&background=4285F4&color=fff`,
-        role: "user",
-        memberSince: "Google Verified Member",
-      };
-
-      setUser(realGoogleUser);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("findly_current_user", JSON.stringify(realGoogleUser));
-
-        const localUsers: User[] = JSON.parse(localStorage.getItem("findly_users") || "[]");
-        const existingIdx = localUsers.findIndex(u => u.email?.toLowerCase() === realGoogleUser.email?.toLowerCase());
-        if (existingIdx !== -1) {
-          localUsers[existingIdx] = realGoogleUser;
-        } else {
-          localUsers.push(realGoogleUser);
-        }
-        localStorage.setItem("findly_users", JSON.stringify(localUsers));
-      }
-      return {};
-    }
-
+  // Direct Firebase Google OAuth Popup (accounts.google.com)
+  const signInWithGoogle = async (): Promise<{ error?: string }> => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const googleUser = result.user;
@@ -238,12 +212,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return {};
     } catch (err: unknown) {
-      console.warn("Firebase Google Sign-In notice:", err);
-      const msg = err instanceof Error ? err.message : "Firebase Auth Error";
-      if (msg.includes("api-key") || msg.includes("invalid-api-key") || msg.includes("unauthorized-domain")) {
-        return { error: "Firebase Auth Error: Please add your real Firebase API Key & Auth Domain to .env.local to enable live Google popup sign-in." };
+      console.error("Firebase Google Sign-In error:", err);
+      const code = (err as { code?: string })?.code || "";
+      const msg = (err as { message?: string })?.message || "Google Sign-In failed.";
+
+      if (code === "auth/popup-closed-by-user") {
+        return { error: "Google sign-in window was closed before completing." };
       }
-      return { error: `Firebase Sign-In Notice: ${msg}` };
+      if (code === "auth/operation-not-allowed") {
+        return { error: "Google Provider is not enabled in Firebase Console yet. Go to Firebase Console -> Authentication -> Sign-in method -> Enable Google." };
+      }
+      if (code === "auth/unauthorized-domain") {
+        return { error: "This domain is not authorized in Firebase. Go to Firebase Console -> Authentication -> Settings -> Authorized Domains -> Add localhost." };
+      }
+
+      return { error: `Firebase Google Auth Notice (${code}): ${msg}` };
     }
   };
 
