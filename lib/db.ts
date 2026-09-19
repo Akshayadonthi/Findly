@@ -58,9 +58,11 @@ const setLocalStorageData = <T>(key: string, value: T): void => {
 
 const initLocalStorage = () => {
   if (typeof window === "undefined") return;
-  if (!localStorage.getItem("findly_items")) {
-    setLocalStorageData("findly_items", [] as Item[]);
-  }
+  
+  // Clean old dummy items from localStorage if present
+  const rawItems: Item[] = getLocalStorageData("findly_items", []);
+  const cleanItems = rawItems.filter(i => i.id && !i.id.startsWith("lost-") && !i.id.startsWith("found-") && !i.id.startsWith("demo-"));
+  setLocalStorageData("findly_items", cleanItems);
   if (!localStorage.getItem("findly_users")) {
     setLocalStorageData("findly_users", [] as User[]);
   }
@@ -165,6 +167,9 @@ export const dbService = {
   getLocalStorageItems(filters?: FilterState): Item[] {
     let items: Item[] = getLocalStorageData("findly_items", []);
     const allImages: ItemImage[] = getLocalStorageData("findly_item_images", []);
+
+    // Filter out dummy items
+    items = items.filter(item => item && item.id && !item.id.startsWith("lost-") && !item.id.startsWith("found-") && !item.id.startsWith("demo-"));
 
     items = items.map((item) => {
       const itemImgs = allImages.filter(img => img.itemId === item.id);
