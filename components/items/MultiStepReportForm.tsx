@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   Info,
   DollarSign,
-  Laptop
+  Laptop,
+  Phone
 } from "lucide-react";
 import Input from "@/components/ui/input";
 import Select from "@/components/ui/select";
@@ -60,6 +61,7 @@ export const MultiStepReportForm: React.FC<MultiStepReportFormProps> = ({ type }
     latitude: undefined as number | undefined,
     longitude: undefined as number | undefined,
     reward: "",
+    whatsappNumber: "",
     additionalNotes: "",
   });
 
@@ -204,6 +206,8 @@ export const MultiStepReportForm: React.FC<MultiStepReportFormProps> = ({ type }
           model: formData.model || undefined,
           identifyingFeatures: formData.identifyingFeatures || undefined,
           reward: formData.reward ? parseFloat(formData.reward) : undefined,
+          whatsappNumber: formData.whatsappNumber || undefined,
+          phoneNumber: formData.whatsappNumber || undefined,
           additionalNotes: formData.additionalNotes || undefined,
         },
         activeUser.id,
@@ -275,6 +279,7 @@ export const MultiStepReportForm: React.FC<MultiStepReportFormProps> = ({ type }
                 latitude: undefined,
                 longitude: undefined,
                 reward: "",
+                whatsappNumber: "",
                 additionalNotes: "",
               });
               setImageFiles([]);
@@ -546,7 +551,7 @@ export const MultiStepReportForm: React.FC<MultiStepReportFormProps> = ({ type }
         {currentStep === 4 && (
           <div className="space-y-4 animate-fade-in">
             <h3 className="text-lg font-bold text-neutral-900 border-b border-neutral-50 pb-2">
-              Step 4: Optional Information
+              Step 4: Optional Information & Contact Details
             </h3>
 
             {type === "lost" && (
@@ -559,6 +564,16 @@ export const MultiStepReportForm: React.FC<MultiStepReportFormProps> = ({ type }
                 leftIcon={<DollarSign className="h-5 w-5 text-neutral-400" />}
               />
             )}
+
+            <Input
+              label="WhatsApp / Phone Number (Optional)"
+              type="tel"
+              placeholder="e.g. +91 98765 43210"
+              value={formData.whatsappNumber}
+              onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+              leftIcon={<Phone className="h-5 w-5 text-emerald-600" />}
+              helperText="Users who see your listing can click 'Chat on WhatsApp' to contact your WhatsApp directly."
+            />
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-neutral-700">Additional Notes</label>

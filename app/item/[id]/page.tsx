@@ -115,10 +115,25 @@ export default function DynamicItemPage() {
     if (!item) return;
     const itemType = item.type || (item.status === "found" ? "found" : "lost");
     const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+
+    let rawPhone = item.whatsappNumber || item.phoneNumber || "";
+    let cleanPhone = rawPhone.replace(/[^\d+]/g, "");
+
+    if (cleanPhone && !cleanPhone.startsWith("+") && cleanPhone.length === 10) {
+      cleanPhone = "91" + cleanPhone;
+    } else if (cleanPhone.startsWith("+")) {
+      cleanPhone = cleanPhone.substring(1);
+    }
+
     const text = encodeURIComponent(
       `Hi ${item.reporter.name.split(" ")[0]}! I saw your ${itemType} item listing for "${item.title}" on Findly: ${currentUrl}`
     );
-    window.open(`https://wa.me/?text=${text}`, "_blank");
+
+    if (cleanPhone) {
+      window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
+    } else {
+      window.open(`https://wa.me/?text=${text}`, "_blank");
+    }
   };
 
   if (isLoading) {

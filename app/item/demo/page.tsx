@@ -17,8 +17,24 @@ export default function ItemDemoPage() {
   const [claimSubmitted, setClaimSubmitted] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Toggle between lost item demo and found item demo
-  const item = demoType === "lost" ? DEMO_ITEMS[0] : DEMO_ITEMS[5];
+  const sampleItem = {
+    id: "sample-1",
+    title: "Sample Laptop Listing",
+    description: "Sample listing preview for testing item details.",
+    category: "Electronics",
+    type: demoType,
+    status: demoType,
+    location: "Campus Area",
+    city: "Chennai",
+    area: "Campus Area",
+    date: "2026-09-19",
+    color: "Silver",
+    brand: "Apple",
+    reporter: { id: "u1", name: "Community Reporter", memberSince: "2026" },
+  };
+
+  // Toggle between lost item demo and found item demo with safety fallback
+  const item = (demoType === "lost" ? DEMO_ITEMS[0] : DEMO_ITEMS[5]) || sampleItem;
 
   const handleShare = () => {
     setCopiedLink(true);

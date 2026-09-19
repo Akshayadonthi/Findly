@@ -55,6 +55,8 @@ export interface Item {
   model?: string;
   identifyingFeatures?: string;
   reward?: number;
+  whatsappNumber?: string;
+  phoneNumber?: string;
   additionalNotes?: string;
   imageUrl?: string;
   images?: ItemImage[];
