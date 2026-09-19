@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
-import { ArrowRight, PlusCircle, Search, Laptop, MapPin, Sparkles, CheckCircle2 } from "lucide-react";
+import { ArrowRight, PlusCircle, Laptop, MapPin, Sparkles, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Button from "@/components/ui/button";
-import ReportModal from "../items/ReportModal";
 
 export const Hero: React.FC = () => {
-  const [reportType, setReportType] = useState<"lost" | "found" | null>(null);
 
   // Animations configuration
   const containerVariants = {
@@ -59,23 +57,25 @@ export const Hero: React.FC = () => {
               </motion.p>
 
               <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="w-full sm:w-auto gap-2"
-                  onClick={() => setReportType("lost")}
-                >
-                  <PlusCircle className="h-5 w-5" />
-                  Report Lost Item
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full sm:w-auto text-neutral-700 hover:text-neutral-900"
-                  onClick={() => setReportType("found")}
-                >
-                  Report Found Item
-                </Button>
+                <Link href="/report/lost" className="w-full sm:w-auto">
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    className="w-full sm:w-auto gap-2"
+                  >
+                    <PlusCircle className="h-5 w-5" />
+                    Report Lost Item
+                  </Button>
+                </Link>
+                <Link href="/report/found" className="w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="w-full sm:w-auto text-neutral-700 hover:text-neutral-900 border-neutral-200"
+                  >
+                    Report Found Item
+                  </Button>
+                </Link>
               </motion.div>
 
               <motion.div variants={itemVariants} className="pt-2">
@@ -182,11 +182,6 @@ export const Hero: React.FC = () => {
           </div>
         </div>
       </section>
-
-      {/* Report Modal overlay */}
-      {reportType && (
-        <ReportModal type={reportType} onClose={() => setReportType(null)} />
-      )}
     </>
   );
 };
