@@ -28,13 +28,20 @@ import NotificationDrawer from "@/components/notifications/NotificationDrawer";
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   const { user, signOut } = useAuth();
-  const role = user?.role || "user";
+  
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currentUser = mounted ? user : null;
+  const role = currentUser?.role || "user";
 
   React.useEffect(() => {
     if (!user) return;
@@ -92,7 +99,7 @@ export const Navbar: React.FC = () => {
               </Link>
             ))}
 
-            {user && (
+            {currentUser && (
               <Link
                 href="/messages"
                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-1.5 ${
@@ -115,7 +122,7 @@ export const Navbar: React.FC = () => {
             </Link>
 
             {/* Authenticated State */}
-            {user ? (
+            {currentUser ? (
               <div className="flex items-center gap-2 relative">
                 {/* Notification Bell Button */}
                 <button
@@ -137,14 +144,14 @@ export const Navbar: React.FC = () => {
                     onClick={() => setShowDropdown(!showDropdown)}
                     className="h-10 w-10 rounded-full bg-primary-100 border border-primary-200/50 flex items-center justify-center font-bold text-primary-700 text-sm focus:outline-none hover:bg-primary-200 transition-colors"
                   >
-                    {getInitials(user.name)}
+                    {getInitials(currentUser.name)}
                   </button>
 
                 {/* Desktop Dropdown */}
                 {showDropdown && (
                   <div className="absolute right-0 mt-2.5 w-60 bg-white border border-neutral-100 rounded-2xl shadow-xl py-2 z-50 animate-scale-in">
                     <div className="px-4 py-2 border-b border-neutral-50">
-                      <p className="text-sm font-bold text-neutral-800 truncate">{user.name}</p>
+                      <p className="text-sm font-bold text-neutral-800 truncate">{currentUser.name}</p>
                       <p className="text-[10px] text-neutral-400 font-semibold uppercase">Role: {role}</p>
                     </div>
                     
@@ -280,13 +287,13 @@ export const Navbar: React.FC = () => {
       {/* Mobile Dropdown Panel */}
       {isOpen && (
         <div className="md:hidden border-t border-neutral-100 bg-white px-4 py-4 space-y-3 shadow-lg animate-slide-down">
-          {user && (
+          {currentUser && (
             <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-2xl border border-neutral-100/50">
               <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-700 text-sm">
-                {getInitials(user.name)}
+                {getInitials(currentUser.name)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-neutral-800 truncate">{user.name}</p>
+                <p className="text-sm font-bold text-neutral-800 truncate">{currentUser.name}</p>
                 <p className="text-[10px] text-neutral-400 font-semibold uppercase">Role: {role}</p>
               </div>
             </div>
@@ -308,7 +315,7 @@ export const Navbar: React.FC = () => {
               </Link>
             ))}
 
-            {user && (
+            {currentUser && (
               <>
                 <Link
                   href="/messages"
