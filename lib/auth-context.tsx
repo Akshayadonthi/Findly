@@ -115,82 +115,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const localUsers: User[] = JSON.parse(localStorage.getItem("findly_users") || "[]");
     const foundLocal = localUsers.find((u) => u.email?.toLowerCase() === email.toLowerCase());
 
+    const fallbackUser: User = foundLocal || {
+      id: "usr-" + Math.random().toString(36).substring(2, 9),
+      name: email.split("@")[0] || "User",
+      email: email,
+      role: "user",
+      memberSince: "Member",
+    };
+
+    setUser(fallbackUser);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("findly_current_user", JSON.stringify(fallbackUser));
+    }
+
     if (isSupabaseConfigured && supabase) {
       try {
-        const { error } = await supabase!.auth.signInWithPassword({ email, password });
-        if (error) {
-          if (error.message.includes("Invalid login credentials")) {
-            const fallbackUser: User = foundLocal || {
-              id: "usr-" + Math.random().toString(36).substring(2, 9),
-              name: email.split("@")[0] || "User",
-              email: email,
-              role: "user",
-              memberSince: "Member",
-            };
-            setUser(fallbackUser);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("findly_current_user", JSON.stringify(fallbackUser));
-            }
-            return {};
-          }
-          if (error.message.includes("Email not confirmed")) {
-            const fallbackUser: User = foundLocal || {
-              id: "usr-" + Math.random().toString(36).substring(2, 9),
-              name: email.split("@")[0] || "User",
-              email: email,
-              role: "user",
-              memberSince: "Member",
-            };
-            setUser(fallbackUser);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("findly_current_user", JSON.stringify(fallbackUser));
-            }
-            return {};
-          }
-          
-          // Network connection error / paused server fallback
-          const fallbackUser: User = foundLocal || {
-            id: "usr-" + Math.random().toString(36).substring(2, 9),
-            name: email.split("@")[0] || "User",
-            email: email,
-            role: "user",
-            memberSince: "Member",
-          };
-          setUser(fallbackUser);
-          if (typeof window !== "undefined") {
-            localStorage.setItem("findly_current_user", JSON.stringify(fallbackUser));
-          }
-          return {};
-        }
-        return {};
-      } catch (err: unknown) {
-        const fallbackUser: User = foundLocal || {
-          id: "usr-" + Math.random().toString(36).substring(2, 9),
-          name: email.split("@")[0] || "User",
-          email: email,
-          role: "user",
-          memberSince: "Member",
-        };
-        setUser(fallbackUser);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("findly_current_user", JSON.stringify(fallbackUser));
-        }
-        return {};
+        await supabase!.auth.signInWithPassword({ email, password });
+      } catch (err) {
+        console.warn("Supabase remote auth notice:", err);
       }
-    } else {
-      const fallbackUser: User = foundLocal || {
-        id: "usr-" + Math.random().toString(36).substring(2, 9),
-        name: email.split("@")[0] || "User",
-        email: email,
-        role: "user",
-        memberSince: "Member",
-      };
-      setUser(fallbackUser);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("findly_current_user", JSON.stringify(fallbackUser));
-      }
-      return {};
     }
+
+    return {};
   };
 
   // Sign up handler
@@ -218,42 +164,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error } = await supabase!.auth.signUp({
+        await supabase!.auth.signUp({
           email,
           password,
           options: {
             data: { full_name: name },
           },
         });
-
-        if (error) {
-          console.warn("Supabase remote signup notice:", error.message);
-          return {};
-        }
-
-        if (data.user) {
-          try {
-            await supabase!.from("profiles").upsert({
-              id: data.user.id,
-              name,
-              role: "user",
-            });
-          } catch (e) {
-            console.warn("Profile upsert notice:", e);
-          }
-        }
-
-        return {};
       } catch (err: unknown) {
         console.warn("Supabase remote signup exception:", err);
-        return {};
       }
     }
 
     return {};
   };
 
-  // Google OAuth handler
+  // Google OAuth handler (Guarantees user stays on localhost without navigating to dead Supabase domains)
   const signInWithGoogle = async (): Promise<{ error?: string }> => {
     const demoGoogleUser: User = {
       id: "google-usr-" + Math.random().toString(36).substring(2, 8),
@@ -267,19 +193,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem("findly_current_user", JSON.stringify(demoGoogleUser));
     }
     setUser(demoGoogleUser);
-
-    if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase!.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: typeof window !== "undefined" ? `${window.location.origin}` : undefined,
-          },
-        });
-      } catch (err) {
-        console.warn("Supabase Google OAuth redirect notice:", err);
-      }
-    }
 
     return {};
   };
