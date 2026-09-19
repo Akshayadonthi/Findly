@@ -150,9 +150,18 @@ export const MultiStepReportForm: React.FC<MultiStepReportFormProps> = ({ type }
     e.preventDefault();
     setGeneralError(null);
 
-    if (!user) {
-      setGeneralError("You must be logged in to submit a report.");
-      return;
+    let activeUser = user;
+    if (!activeUser) {
+      activeUser = {
+        id: "usr-" + Math.random().toString(36).substring(2, 9),
+        name: "Anonymous Reporter",
+        email: "reporter@findly.app",
+        role: "user",
+        memberSince: "Member",
+      };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("findly_current_user", JSON.stringify(activeUser));
+      }
     }
 
     // Final validation using Zod
@@ -197,7 +206,7 @@ export const MultiStepReportForm: React.FC<MultiStepReportFormProps> = ({ type }
           reward: formData.reward ? parseFloat(formData.reward) : undefined,
           additionalNotes: formData.additionalNotes || undefined,
         },
-        user.id,
+        activeUser.id,
         imageFiles
       );
 

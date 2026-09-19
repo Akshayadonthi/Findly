@@ -219,8 +219,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (code === "auth/popup-closed-by-user") {
         return { error: "Google sign-in window was closed before completing." };
       }
-      if (code === "auth/operation-not-allowed") {
-        return { error: "Google Provider is not enabled in Firebase Console yet. Go to Firebase Console -> Authentication -> Sign-in method -> Enable Google." };
+      if (code === "auth/configuration-not-found" || code === "auth/operation-not-allowed") {
+        return { error: "Google Provider is disabled in Firebase. Please go to console.firebase.google.com -> Authentication -> Sign-in method -> Click Google -> Toggle Enable ON -> Click Save." };
       }
       if (code === "auth/unauthorized-domain") {
         return { error: "This domain is not authorized in Firebase. Go to Firebase Console -> Authentication -> Settings -> Authorized Domains -> Add localhost." };
