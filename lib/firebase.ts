@@ -1,8 +1,12 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
+const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
+
+export const isFirebaseConfigured = Boolean(apiKey) && apiKey !== "AIzaSyDemoKeyForFindlyGoogleOAuthSetup12345";
+
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDemoKeyForFindlyGoogleOAuthSetup12345",
+  apiKey: apiKey || "AIzaSyDemoKeyForFindlyGoogleOAuthSetup12345",
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "findly-app.firebaseapp.com",
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "findly-app",
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "findly-app.appspot.com",

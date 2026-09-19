@@ -238,8 +238,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return {};
     } catch (err: unknown) {
-      console.warn("Firebase Google Sign-In notice/popup closed:", err);
-      return { error: "Google Popup was closed or blocked. Click to enter your Google email directly." };
+      console.warn("Firebase Google Sign-In notice:", err);
+      const msg = err instanceof Error ? err.message : "Firebase Auth Error";
+      if (msg.includes("api-key") || msg.includes("invalid-api-key") || msg.includes("unauthorized-domain")) {
+        return { error: "Firebase Auth Error: Please add your real Firebase API Key & Auth Domain to .env.local to enable live Google popup sign-in." };
+      }
+      return { error: `Firebase Sign-In Notice: ${msg}` };
     }
   };
 
